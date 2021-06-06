@@ -10,6 +10,13 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
+export const enum TerminalSettingPrefix {
+	Shell = 'terminal.integrated.shell.',
+	ShellArgs = 'terminal.integrated.shellArgs.',
+	DefaultProfile = 'terminal.integrated.defaultProfile.',
+	Profiles = 'terminal.integrated.profiles.'
+}
+
 export const enum TerminalSettingId {
 	ShellLinux = 'terminal.integrated.shell.linux',
 	ShellMacOs = 'terminal.integrated.shell.osx',
@@ -78,7 +85,6 @@ export const enum TerminalSettingId {
 	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
 	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
-	AllowWorkspaceConfiguration = 'terminal.integrated.allowWorkspaceConfiguration',
 	InheritEnv = 'terminal.integrated.inheritEnv'
 }
 
@@ -178,7 +184,7 @@ export interface IOffProcessTerminalService {
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(): Promise<IProcessDetails[]>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
+	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getWslPath(original: string): Promise<string>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
@@ -252,7 +258,7 @@ export interface IPtyService {
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
 	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getProfiles?(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
+	getProfiles?(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getWslPath(original: string): Promise<string>;
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
@@ -497,15 +503,20 @@ export interface ITerminalChildProcess {
 	getLatency(): Promise<number>;
 }
 
+export interface IReconnectConstants {
+	GraceTime: number,
+	ShortGraceTime: number
+}
+
 export const enum LocalReconnectConstants {
 	/**
 	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
 	*/
-	ReconnectionGraceTime = 60000, // 60 seconds
+	GraceTime = 60000, // 60 seconds
 	/**
 	 * Maximal grace time between the first and the last reconnection...
 	*/
-	ReconnectionShortGraceTime = 6000, // 6 seconds
+	ShortGraceTime = 6000, // 6 seconds
 }
 
 export const enum FlowControlConstants {
@@ -560,6 +571,7 @@ export interface ITerminalProfile {
 	args?: string | string[] | undefined;
 	env?: ITerminalEnvironment;
 	overrideName?: boolean;
+	color?: string;
 	icon?: ThemeIcon | URI | { light: URI, dark: URI };
 }
 
@@ -569,8 +581,6 @@ export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimension
 	 */
 	forceExactSize?: boolean;
 }
-
-export type SafeConfigProvider = <T>(key: string) => T | undefined;
 
 export const enum ProfileSource {
 	GitBash = 'Git Bash',
@@ -582,6 +592,7 @@ export interface IBaseUnresolvedTerminalProfile {
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
 	icon?: ThemeIcon | URI | { light: URI, dark: URI };
+	color?: string;
 	env?: ITerminalEnvironment;
 }
 

@@ -118,7 +118,7 @@ export class StatefulMarkdownCell extends Disposable {
 		private readonly templateData: MarkdownCellRenderTemplate,
 		private editorOptions: IEditorOptions,
 		private readonly renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
-		options: { useRenderer: boolean },
+		options: { useRenderer: boolean; },
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -250,6 +250,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 	private updateFoldingIconShowClass() {
 		const showFoldingIcon = this.notebookEditor.notebookOptions.getLayoutConfiguration().showFoldingControls;
+		this.templateData.foldingIndicator.classList.remove('mouseover', 'always');
 		this.templateData.foldingIndicator.classList.add(showFoldingIcon);
 	}
 
@@ -302,11 +303,10 @@ export class StatefulMarkdownCell extends Disposable {
 			});
 		} else {
 			this.editorDisposables.clear();
-
-			const width = this.viewCell.layoutInfo.editorWidth;
+			const width = this.notebookEditor.notebookOptions.computeMarkdownCellEditorWidth(this.notebookEditor.getLayoutInfo().width);
 			const lineNum = this.viewCell.lineCount;
 			const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
-			const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding();
+			const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata);
 			editorHeight = Math.max(lineNum, 1) * lineHeight + editorPadding.top + editorPadding.bottom;
 
 			this.templateData.editorContainer.innerText = '';

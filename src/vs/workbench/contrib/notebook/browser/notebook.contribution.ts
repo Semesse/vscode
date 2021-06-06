@@ -16,7 +16,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -24,12 +24,13 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorInput, IEditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, IEditorInputWithOptions, EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, IEditorInputWithOptions, EditorExtensions } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellToolbarLocKey, CellToolbarVisibility, CellUri, DisplayOrderKey, ExperimentalUndoRedoPerCell, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocation, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBar, CompactView, FocusIndicator, InsertToolbarLocation, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, NotebookCellEditorOptionsCustomizations, ConsolidatedRunButton } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -42,7 +43,7 @@ import { NotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/brow
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorServiceImpl';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Event } from 'vs/base/common/event';
 import { getFormatedMetadataJSON } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl';
@@ -65,10 +66,12 @@ import 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
 import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
+import 'vs/workbench/contrib/notebook/browser/contrib/gettingStarted/notebookGettingStarted';
 import 'vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
 import 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
 import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
+import 'vs/workbench/contrib/notebook/browser/contrib/profile/notebookProfile';
 import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/statusBarProviders';
 import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/contributedStatusBarItemController';
 import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/executionStatusBarItemController';
@@ -83,6 +86,7 @@ import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 
 // Output renderers registration
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
+import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -126,7 +130,7 @@ class NotebookDiffEditorSerializer implements IEditorInputSerializer {
 	}
 
 	deserialize(instantiationService: IInstantiationService, raw: string) {
-		type Data = { resource: URI, originalResource: URI, name: string, originalName: string, viewType: string, textDiffName: string | undefined, group: number };
+		type Data = { resource: URI, originalResource: URI, name: string, originalName: string, viewType: string, textDiffName: string | undefined, group: number; };
 		const data = <Data>parse(raw);
 		if (!data) {
 			return undefined;
@@ -160,7 +164,7 @@ class NotebookEditorSerializer implements IEditorInputSerializer {
 		});
 	}
 	deserialize(instantiationService: IInstantiationService, raw: string) {
-		type Data = { resource: URI, viewType: string, group: number };
+		type Data = { resource: URI, viewType: string, group: number; };
 		const data = <Data>parse(raw);
 		if (!data) {
 			return undefined;
@@ -192,7 +196,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 	) {
 		super();
 
-		const undoRedoPerCell = configurationService.getValue<boolean>(ExperimentalUndoRedoPerCell);
+		const undoRedoPerCell = configurationService.getValue<boolean>(UndoRedoPerCell);
 
 		this._register(undoRedoService.registerUriComparisonKeyComputer(CellUri.scheme, {
 			getComparisonKey: (uri: URI): string => {
@@ -547,6 +551,44 @@ registerSingleton(INotebookEditorService, NotebookEditorWidgetService, true);
 registerSingleton(INotebookKernelService, NotebookKernelService, true);
 registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingService, true);
 
+const schemas: IJSONSchemaMap = {};
+function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; }): x is IConfigurationPropertySchema {
+	return (typeof x.type !== 'undefined' || typeof x.anyOf !== 'undefined');
+}
+for (const editorOption of editorOptionsRegistry) {
+	const schema = editorOption.schema;
+	if (schema) {
+		if (isConfigurationPropertySchema(schema)) {
+			schemas[`editor.${editorOption.name}`] = schema;
+		} else {
+			for (let key in schema) {
+				if (Object.hasOwnProperty.call(schema, key)) {
+					schemas[key] = schema[key];
+				}
+			}
+		}
+	}
+}
+
+const editorOptionsCustomizationSchema: IConfigurationPropertySchema = {
+	description: nls.localize('notebook.editorOptions.experimentalCustomization', 'Settings for code editors used in notebooks. This can be used to customize most editor.* settings.'),
+	default: {},
+	allOf: [
+		{
+			properties: schemas,
+		}
+		// , {
+		// 	patternProperties: {
+		// 		'^\\[.*\\]$': {
+		// 			type: 'object',
+		// 			default: {},
+		// 			properties: schemas
+		// 		}
+		// 	}
+		// }
+	]
+};
+
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
 	id: 'notebook',
@@ -562,7 +604,7 @@ configurationRegistry.registerConfiguration({
 			},
 			default: []
 		},
-		[CellToolbarLocKey]: {
+		[CellToolbarLocation]: {
 			description: nls.localize('notebook.cellToolbarLocation.description', "Where the cell toolbar should be shown, or whether it should be hidden."),
 			type: 'object',
 			additionalProperties: {
@@ -572,12 +614,19 @@ configurationRegistry.registerConfiguration({
 			},
 			default: {
 				'default': 'right'
-			}
+			},
+			tags: ['notebookLayout']
 		},
-		[ShowCellStatusBarKey]: {
+		[ShowCellStatusBar]: {
 			description: nls.localize('notebook.showCellStatusbar.description', "Whether the cell status bar should be shown."),
-			type: 'boolean',
-			default: true
+			type: 'string',
+			enum: ['hidden', 'visible', 'visibleAfterExecute'],
+			enumDescriptions: [
+				nls.localize('notebook.showCellStatusbar.hidden.description', "The cell status bar is always hidden."),
+				nls.localize('notebook.showCellStatusbar.visible.description', "The cell status bar is always visible."),
+				nls.localize('notebook.showCellStatusbar.visibleAfterExecute.description', "The cell status bar is hidden until the cell has executed. Then it becomes visible to show the execution status.")],
+			default: 'visible',
+			tags: ['notebookLayout']
 		},
 		[NotebookTextDiffEditorPreview]: {
 			description: nls.localize('notebook.diff.enablePreview.description', "Whether to use the enhanced text diff editor for notebook."),
@@ -593,7 +642,65 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.cellToolbarVisibility.description', "Whether the cell toolbar should appear on hover or click."),
 			type: 'string',
 			enum: ['hover', 'click'],
-			default: 'click'
+			default: 'click',
+			tags: ['notebookLayout']
 		},
+		[UndoRedoPerCell]: {
+			description: nls.localize('notebook.undoRedoPerCell.description', "Whether to use separate undo/redo stack for each cell."),
+			type: 'boolean',
+			default: false
+		},
+		[CompactView]: {
+			description: nls.localize('notebook.compactView.description', "Control whether the notebook editor should be rendered in a compact form. "),
+			type: 'boolean',
+			default: true,
+			tags: ['notebookLayout']
+		},
+		[FocusIndicator]: {
+			description: nls.localize('notebook.focusIndicator.description', "Control whether to render the focus indicator as cell borders or a highlight bar on the left gutter"),
+			type: 'string',
+			enum: ['border', 'gutter'],
+			default: 'gutter',
+			tags: ['notebookLayout']
+		},
+		[InsertToolbarLocation]: {
+			description: nls.localize('notebook.insertToolbarPosition.description', "Control where the insert cell actions should be rendered."),
+			type: 'string',
+			enum: ['betweenCells', 'notebookToolbar', 'both', 'hidden'],
+			default: 'both',
+			tags: ['notebookLayout']
+		},
+		[GlobalToolbar]: {
+			description: nls.localize('notebook.globalToolbar.description', "Control whether to render a global toolbar inside the notebook editor."),
+			type: 'boolean',
+			default: true,
+			tags: ['notebookLayout']
+		},
+		[ConsolidatedOutputButton]: {
+			description: nls.localize('notebook.consolidatedOutputButton.description', "Control whether outputs action should be rendered in the output toolbar."),
+			type: 'boolean',
+			default: true,
+			tags: ['notebookLayout']
+		},
+		[ShowFoldingControls]: {
+			description: nls.localize('notebook.showFoldingControls.description', "Controls when the folding controls are shown."),
+			type: 'string',
+			enum: ['always', 'mouseover'],
+			default: 'mouseover',
+			tags: ['notebookLayout']
+		},
+		[DragAndDropEnabled]: {
+			description: nls.localize('notebook.dragAndDrop.description', "Control whether the notebook editor should allow moving cells through drag and drop."),
+			type: 'boolean',
+			default: true,
+			tags: ['notebookLayout']
+		},
+		[ConsolidatedRunButton]: {
+			description: nls.localize('notebook.consolidatedRunButton.description', "Control whether extra actions are shown in a dropdown next to the run button."),
+			type: 'boolean',
+			default: true,
+			tags: ['notebookLayout']
+		},
+		[NotebookCellEditorOptionsCustomizations]: editorOptionsCustomizationSchema
 	}
 });

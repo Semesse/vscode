@@ -126,6 +126,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			}
 		}));
 
+		this._register(this.viewContext.notebookOptions.onDidChangeOptions(e => {
+			if (e.cellStatusBarVisibility || e.insertToolbarPosition || e.cellToolbarLocation) {
+				this.layoutChange({});
+			}
+		}));
+
 		this._outputCollection = new Array(this.model.outputs.length);
 
 		this._layoutInfo = {
@@ -149,9 +155,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		// recompute
 		this._ensureOutputsTop();
 		const notebookLayoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
+		const bottomToolbarDimensions = this.viewContext.notebookOptions.computeBottomToolbarDimensions();
 		const outputShowMoreContainerHeight = state.outputShowMoreContainerHeight ? state.outputShowMoreContainerHeight : this._layoutInfo.outputShowMoreContainerHeight;
 		let outputTotalHeight = Math.max(this._outputMinHeight, this.metadata.outputCollapsed ? notebookLayoutConfiguration.collapsedIndicatorHeight : this._outputsTop!.getTotalValue());
 
+		const originalLayout = this.layoutInfo;
 		if (!this.metadata.inputCollapsed) {
 			let newState: CodeCellLayoutState;
 			let editorHeight: number;
@@ -172,17 +180,17 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				newState = CodeCellLayoutState.Estimated;
 			}
 
-			const statusbarHeight = this.getEditorStatusbarHeight();
+			const statusbarHeight = this.viewContext.notebookOptions.computeEditorStatusbarHeight(this.internalMetadata);
 			const indicatorHeight = editorHeight + statusbarHeight + outputTotalHeight + outputShowMoreContainerHeight;
 			const outputContainerOffset = notebookLayoutConfiguration.editorToolbarHeight
 				+ notebookLayoutConfiguration.cellTopMargin // CELL_TOP_MARGIN
 				+ editorHeight
 				+ statusbarHeight;
 			const outputShowMoreContainerOffset = totalHeight
-				- notebookLayoutConfiguration.bottomToolbarGap
-				- notebookLayoutConfiguration.bottomToolbarHeight / 2
+				- bottomToolbarDimensions.bottomToolbarGap
+				- bottomToolbarDimensions.bottomToolbarHeight / 2
 				- outputShowMoreContainerHeight;
-			const bottomToolbarOffset = this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight);
+			const bottomToolbarOffset = this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType);
 			const editorWidth = state.outerWidth !== undefined
 				? this.viewContext.notebookOptions.computeCodeCellEditorWidth(state.outerWidth)
 				: this._layoutInfo?.editorWidth;
@@ -209,13 +217,13 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				notebookLayoutConfiguration.cellTopMargin
 				+ notebookLayoutConfiguration.collapsedIndicatorHeight
 				+ notebookLayoutConfiguration.cellBottomMargin //CELL_BOTTOM_MARGIN
-				+ notebookLayoutConfiguration.bottomToolbarGap //BOTTOM_CELL_TOOLBAR_GAP
+				+ bottomToolbarDimensions.bottomToolbarGap //BOTTOM_CELL_TOOLBAR_GAP
 				+ outputTotalHeight + outputShowMoreContainerHeight;
 			const outputShowMoreContainerOffset = totalHeight
-				- notebookLayoutConfiguration.bottomToolbarGap
-				- notebookLayoutConfiguration.bottomToolbarHeight / 2
+				- bottomToolbarDimensions.bottomToolbarGap
+				- bottomToolbarDimensions.bottomToolbarHeight / 2
 				- outputShowMoreContainerHeight;
-			const bottomToolbarOffset = this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight);
+			const bottomToolbarOffset = this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType);
 			const editorWidth = state.outerWidth !== undefined
 				? this.viewContext.notebookOptions.computeCodeCellEditorWidth(state.outerWidth)
 				: this._layoutInfo?.editorWidth;
@@ -235,10 +243,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			};
 		}
 
-		if (state.editorHeight || state.outputHeight) {
-			state.totalHeight = true;
-		}
-
+		state.totalHeight = this.layoutInfo.totalHeight !== originalLayout.totalHeight;
 		state.source = source;
 
 		this._fireOnDidChangeLayout(state);
@@ -299,7 +304,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}
 
 		const verticalScrollbarHeight = hasScrolling ? 12 : 0; // take zoom level into account
-		const editorPadding = this.viewContext.notebookOptions.computeEditorPadding();
+		const editorPadding = this.viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
 		return this.lineCount * lineHeight
 			+ editorPadding.top
 			+ editorPadding.bottom // EDITOR_BOTTOM_PADDING
@@ -308,14 +313,15 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	private computeTotalHeight(editorHeight: number, outputsTotalHeight: number, outputShowMoreContainerHeight: number): number {
 		const layoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
-		return layoutConfiguration.editorToolbarHeight //EDITOR_TOOLBAR_HEIGHT
-			+ layoutConfiguration.cellTopMargin // CELL_TOP_MARGIN
+		const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
+		return layoutConfiguration.editorToolbarHeight
+			+ layoutConfiguration.cellTopMargin
 			+ editorHeight
-			+ this.getEditorStatusbarHeight()
+			+ this.viewContext.notebookOptions.computeEditorStatusbarHeight(this.internalMetadata)
 			+ outputsTotalHeight
 			+ outputShowMoreContainerHeight
-			+ layoutConfiguration.bottomToolbarGap //BOTTOM_CELL_TOOLBAR_GAP
-			+ layoutConfiguration.cellBottomMargin; // CELL_BOTTOM_MARGIN;
+			+ bottomToolbarGap
+			+ layoutConfiguration.cellBottomMargin;
 	}
 
 	protected onDidChangeTextModelContent(): void {

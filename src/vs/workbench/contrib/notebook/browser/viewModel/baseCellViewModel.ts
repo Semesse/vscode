@@ -144,10 +144,8 @@ export abstract class BaseCellViewModel extends Disposable {
 
 		this._register(model.onDidChangeInternalMetadata(e => {
 			this._onDidChangeState.fire({ internalMetadataChanged: true, runStateChanged: e.runStateChanged });
-		}));
-
-		this._register(this._viewContext.notebookOptions.onDidChangeOptions(e => {
-			if (e.cellStatusBarVisibility || e.insertToolbarPosition) {
+			if (e.runStateChanged || e.lastRunSuccessChanged) {
+				// Statusbar visibility may change
 				this.layoutChange({});
 			}
 		}));
@@ -159,9 +157,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		}));
 	}
 
-	getEditorStatusbarHeight() {
-		return this._viewContext.notebookOptions.computeStatusBarHeight();
-	}
+
 
 	abstract hasDynamicHeight(): boolean;
 	abstract getHeight(lineHeight: number): number;
@@ -403,7 +399,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding();
+		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
 		return this._textEditor.getTopForLineNumber(line) + editorPadding.top;
 	}
 
@@ -412,7 +408,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding();
+		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
 		return this._textEditor.getTopForPosition(line, column) + editorPadding.top;
 	}
 

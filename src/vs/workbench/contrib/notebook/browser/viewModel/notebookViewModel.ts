@@ -39,14 +39,14 @@ import { CellEditType, CellKind, ICell, INotebookSearchOptions, IOutputDto, ISel
 import { cellIndexesToRanges, cellRangesToIndexes, ICellRange, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 export interface INotebookEditorViewState {
-	editingCells: { [key: number]: boolean };
-	editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState | null };
+	editingCells: { [key: number]: boolean; };
+	editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState | null; };
 	hiddenFoldingRanges?: ICellRange[];
-	cellTotalHeights?: { [key: number]: number };
+	cellTotalHeights?: { [key: number]: number; };
 	scrollPosition?: { left: number; top: number; };
 	focus?: number;
 	editorFocused?: boolean;
-	contributionsState?: { [id: string]: unknown };
+	contributionsState?: { [id: string]: unknown; };
 }
 
 export interface ICellModelDecorations {
@@ -123,10 +123,10 @@ class DecorationsTree {
 }
 
 const TRACKED_RANGE_OPTIONS = [
-	ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges }),
-	ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }),
-	ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.GrowsOnlyWhenTypingBefore }),
-	ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.GrowsOnlyWhenTypingAfter }),
+	ModelDecorationOptions.register({ description: 'notebook-view-model-tracked-range-always-grows-when-typing-at-edges', stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges }),
+	ModelDecorationOptions.register({ description: 'notebook-view-model-tracked-range-never-grows-when-typing-at-edges', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }),
+	ModelDecorationOptions.register({ description: 'notebook-view-model-tracked-range-grows-only-when-typing-before', stickiness: TrackedRangeStickiness.GrowsOnlyWhenTypingBefore }),
+	ModelDecorationOptions.register({ description: 'notebook-view-model-tracked-range-grows-only-when-typing-after', stickiness: TrackedRangeStickiness.GrowsOnlyWhenTypingAfter }),
 ];
 
 function _normalizeOptions(options: IModelDecorationOptions): ModelDecorationOptions {
@@ -147,6 +147,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private _handleToViewCellMapping = new Map<number, CellViewModel>();
 	private _options: NotebookViewModelOptions;
 	get options(): NotebookViewModelOptions { return this._options; }
+	private readonly _onDidChangeOptions = this._register(new Emitter<void>());
+	get onDidChangeOptions(): Event<void> { return this._onDidChangeOptions.event; }
 	private _viewCells: CellViewModel[] = [];
 
 	get viewCells(): ICellViewModel[] {
@@ -363,6 +365,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	updateOptions(newOptions: Partial<NotebookViewModelOptions>) {
 		this._options = { ...this._options, ...newOptions };
+		this._onDidChangeOptions.fire();
 	}
 
 	getFocus() {
@@ -952,13 +955,13 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	getEditorViewState(): INotebookEditorViewState {
-		const editingCells: { [key: number]: boolean } = {};
+		const editingCells: { [key: number]: boolean; } = {};
 		this._viewCells.forEach((cell, i) => {
 			if (cell.getEditState() === CellEditState.Editing) {
 				editingCells[i] = true;
 			}
 		});
-		const editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState } = {};
+		const editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState; } = {};
 		this._viewCells.map(cell => ({ handle: cell.model.handle, state: cell.saveEditorViewState() })).forEach((viewState, i) => {
 			if (viewState.state) {
 				editorViewStates[i] = viewState.state;
@@ -1011,7 +1014,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	private _deltaModelDecorationsImpl(oldDecorations: ICellModelDecorations[], newDecorations: ICellModelDeltaDecorations[]): ICellModelDecorations[] {
 
-		const mapping = new Map<number, { cell: CellViewModel; oldDecorations: string[]; newDecorations: IModelDeltaDecoration[] }>();
+		const mapping = new Map<number, { cell: CellViewModel; oldDecorations: string[]; newDecorations: IModelDeltaDecoration[]; }>();
 		oldDecorations.forEach(oldDecoration => {
 			const ownerId = oldDecoration.ownerId;
 

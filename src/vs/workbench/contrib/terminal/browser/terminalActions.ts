@@ -23,7 +23,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ILocalTerminalService, ITerminalProfile, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
@@ -365,6 +365,10 @@ export function registerTerminalActions() {
 									ContextKeyExpr.equals('terminalCount', 1),
 									ContextKeyExpr.has('isTerminalTabsNarrow')
 								)
+							),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleGroup'),
+								ContextKeyExpr.equals('terminalGroupCount', 1)
 							),
 							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'always')
 						)
@@ -807,9 +811,30 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			return getSelectedInstances(accessor)?.[0].rename();
+			const terminalService = accessor.get(ITerminalService);
+			const notificationService = accessor.get(INotificationService);
+
+			const instance = getSelectedInstances(accessor)?.[0];
+			if (!instance) {
+				return;
+			}
+
+			await terminalService.setEditable(instance, {
+				validationMessage: value => validateTerminalName(value),
+				onFinish: async (value, success) => {
+					if (success) {
+						try {
+							await instance.rename(value);
+						} catch (e) {
+							notificationService.error(e);
+						}
+					}
+					await terminalService.setEditable(instance, null);
+				}
+			});
 		}
 	});
+
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -1412,6 +1437,29 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.UnsplitInstance,
+				title: { value: localize('workbench.action.terminal.unsplit', "Unsplit Terminal"), original: 'Unsplit Terminal' },
+				f1: true,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			const instances = getSelectedInstances(accessor);
+			// should not even need this check given the context key
+			// but TS complains
+			if (instances?.length === 1) {
+				const group = terminalService.getGroupForInstance(instances[0]);
+				if (group && group?.terminalInstances.length > 1) {
+					terminalService.unsplitInstance(instances[0]);
+				}
+			}
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.JoinInstance,
 				title: { value: localize('workbench.action.terminal.joinInstance', "Join Terminals"), original: 'Join Terminals' },
 				category,
@@ -1579,10 +1627,10 @@ export function registerTerminalActions() {
 			if (!selectedInstances) {
 				return;
 			}
-			for (const instance of selectedInstances) {
-				instance.dispose(true);
-			}
 			const terminalService = accessor.get(ITerminalService);
+			for (const instance of selectedInstances) {
+				terminalService.safeDisposeTerminal(instance);
+			}
 			if (terminalService.terminalInstances.length > 0) {
 				terminalService.focusTabs();
 				focusNext(accessor);
@@ -1825,4 +1873,15 @@ function getSelectedInstances(accessor: ServicesAccessor): ITerminalInstance[] |
 function focusNext(accessor: ServicesAccessor): void {
 	const listService = accessor.get(IListService);
 	listService.lastFocusedList?.focusNext();
+}
+
+export function validateTerminalName(name: string): { content: string, severity: Severity } | null {
+	if (!name || name.trim().length === 0) {
+		return {
+			content: localize('emptyTerminalNameError', "A name must be provided."),
+			severity: Severity.Error
+		};
+	}
+
+	return null;
 }
