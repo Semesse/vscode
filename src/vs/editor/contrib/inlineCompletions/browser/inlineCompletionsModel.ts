@@ -524,11 +524,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			SnippetController2.get(this.editor)?.insert(completion.snippetInfo.snippet);
 		} else {
 			this.editor.executeEdits(
-				'inlineSuggestion.accept',
-				[
-					EditOperation.replaceMove(completion.range, completion.insertText),
-					...completion.additionalTextEdits
-				]
+				'inlineSuggestion.accept', InlineCompletionsSession.createEditsFromInlineCompletion(this.editor, completion)
 			);
 		}
 
@@ -549,6 +545,17 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	public get commands(): Command[] {
 		const lists = new Set(this.cache.value?.completions.map(c => c.inlineCompletion.sourceInlineCompletions) || []);
 		return [...lists].flatMap(l => l.commands || []);
+	}
+
+	static createEditsFromInlineCompletion(editor: IActiveCodeEditor, completion: TrackedInlineCompletion) {
+		// it's intuitive to consider applying inline completion as inserting ghost text after cursor when multiple cursors exist
+		const insertedText = completion.insertText.slice(completion.range.endColumn - completion.range.startColumn);
+		const cursors = editor.getSelections().map(s => s.collapseToStart());
+		const replacements = cursors.map(
+			cursor => EditOperation.replaceMove(cursor, insertedText)
+		);
+
+		return [...replacements, ...completion.additionalTextEdits];
 	}
 }
 
